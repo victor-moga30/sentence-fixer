@@ -32,28 +32,33 @@ async function handler(req, res) {
         }
 
         // Build the prompt for Gemini - STRONGLY force raw JSON with NO markdown
-        const prompt = `You are a helpful language tutor. 
+        const prompt = `You are a helpful language tutor.
 
-CRITICAL INSTRUCTIONS - READ CAREFULLY:
-- OUTPUT ONLY RAW JSON - NO MARKDOWN, NO BACKTICKS, NO EXPLANATIONS
-- Return the JSON object directly without any formatting
-- Do NOT wrap the JSON in triple backticks (\`\`\`json or any other format)
-- Do NOT add any text before or after the JSON
-- The response must be valid JSON that can be parsed directly
+Task: Correct the following sentence naturally in ${language} with a ${tone} tone.
 
-Task 1: Correct the following sentence naturally in ${language} with a ${tone} tone.
 Sentence: "${sentence}"
 
-Task 2: Briefly explain the mistake in 1-3 sentences.
-
-Task 3: Provide exactly 2 alternative rewrites.
-
-Respond ONLY with valid JSON in this exact format:
+CRITICAL INSTRUCTIONS - READ CAREFULLY:
+1. First, determine if the sentence appears to be in ${language}.
+2. If the sentence does NOT look like ${language} (e.g., it's in English when it should be in Spanish, or vice versa), you MUST respond with ONLY this JSON:
+{
+  "corrected": "",
+  "explanation": "Your sentence doesn't look like ${language}. Please try again.",
+  "alternatives": []
+}
+3. If the sentence IS in ${language}, correct it and provide the response in this exact JSON format:
 {
   "corrected": "the fixed sentence",
   "explanation": "explanation of changes made",
   "alternatives": ["alternative 1", "alternative 2"]
-}`;
+}
+
+OUTPUT REQUIREMENTS:
+- OUTPUT ONLY RAW JSON - NO MARKDOWN, NO BACKTICKS, NO EXPLANATIONS
+- Return the JSON object directly without any formatting
+- Do NOT wrap the JSON in triple backticks (\`\`\`json or any other format)
+- Do NOT add any text before or after the JSON
+- The response must be valid JSON that can be parsed directly`;
 
         // Call Gemini API
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
@@ -82,66 +87,22 @@ Respond ONLY with valid JSON in this exact format:
             throw new Error('No response from AI');
         }
 
-        // Strip markdown formatting (triple backticks with "json" language identifier)
-        let cleanedContent = content.trim();
-        
-        // Remove leading triple backticks with optional "json" language identifier
-        if (cleanedContent.startsWith('```json')) {
-            cleanedContent = cleanedContent.slice(7);
-        } else if (cleanedContent.startsWith('```')) {
-            cleanedContent = cleanedContent.slice(3);
-        }
-        
-        // Remove trailing triple backticks
-        if (cleanedContent.endsWith('```')) {
-            cleanedContent = cleanedContent.slice(0, -3);
-        }
-        
-        // Trim again after removing backticks
-        cleanedContent = cleanedContent.trim();
+        // Trim the text
+        const trimmedContent = content.trim();
 
         // Parse JSON safely
         let parsed;
         try {
-            parsed = JSON.parse(cleanedContent);
+            parsed = JSON.parse(trimmedContent);
         } catch (parseError) {
-            console.error('Failed to parse AI response:', cleanedContent);
+            console.error('Failed to parse AI response:', trimmedContent);
             return res.status(500).json({
                 error: "Invalid AI response"
             });
         }
 
-        // Validate required fields
-        if (!parsed.corrected || !parsed.explanation || !Array.isArray(parsed.alternatives)) {
-            return res.status(500).json({
-                error: "Invalid AI response"
-            });
-        }
-
-        // Check if sentence appears to be in selected language
-        const sentenceLower = sentence.toLowerCase();
-        const isSpanish = /[áéíóúñ¿¡ü]/i.test(sentence) || 
-                         /\b(el|la|los|las|un|una|unos|unas|es|son|está|están)\b/i.test(sentence);
-        const isEnglish = /\b(the|is|are|was|were|a|an|this|that|these|those)\b/i.test(sentence);
-
-        const looksLikeCorrectLanguage = (language === 'Spanish' && isSpanish) || 
-                                         (language === 'English' && isEnglish) ||
-                                         (!isSpanish && !isEnglish); // Short or unclear sentences
-
-        if (!looksLikeCorrectLanguage && sentence.length > 10) {
-            return res.status(200).json({
-                corrected: "",
-                explanation: "Your sentence doesn't look like <language>. Please try again.",
-                alternatives: []
-            });
-        }
-
-        // Return the result
-        return res.status(200).json({
-            corrected: parsed.corrected,
-            explanation: parsed.explanation,
-            alternatives: parsed.alternatives
-        });
+        // Return parsed JSON directly to frontend
+        return res.status(200).json(parsed);
 
     } catch (error) {
         console.error('Error in improve API:', error);
