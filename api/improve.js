@@ -1,5 +1,5 @@
 // Vercel Serverless Function for AI Sentence Fixer
-// This file handles API requests and communicates with OpenAI
+// This file handles API requests and communicates with Google Gemini
 
 async function handler(req, res) {
     // Only allow POST requests
@@ -13,97 +13,63 @@ async function handler(req, res) {
         // Parse JSON body
         const body = req.body;
 
-        // Validate sentence exists
-        if (!body.sentence || typeof body.sentence !== 'string') {
+        // Validate sentence exists and is not empty
+        if (!body.sentence || typeof body.sentence !== 'string' || body.sentence.trim() === '') {
             return res.status(400).json({
-                error: 'Sentence is required and must be a string.'
+                error: 'Sentence is required'
             });
         }
 
         const { sentence, language, tone } = body;
 
-        // Language detection/validation
-        const sentenceLower = sentence.toLowerCase();
-        const isSpanish = /[áéíóúñ¿¡ü]/i.test(sentence) || 
-                         /\b(el|la|los|las|un|una|unos|unas|es|son|está|están)\b/i.test(sentence);
-        const isEnglish = /\b(the|is|are|was|were|a|an|this|that|these|those)\b/i.test(sentence);
-
-        if (language === 'Spanish' && !isSpanish && !isEnglish) {
-            // If it's a short sentence or unclear, proceed anyway
-            // This prevents false positives for short sentences
-        } else if (language === 'English' && isSpanish && !isEnglish && sentence.length > 20) {
-            return res.status(400).json({
-                error: 'The sentence appears to be in Spanish, but English was selected. Please select the correct language.'
-            });
-        }
-
         // Get API key from environment variables
-        const apiKey = process.env.OPENAI_API_KEY;
+        const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
             return res.status(500).json({
-                error: 'API key not configured. Please set OPENAI_API_KEY environment variable.'
+                error: 'API key not configured. Please set GEMINI_API_KEY environment variable.'
             });
         }
 
-        // Determine which model to use
-        const model = 'gpt-4o-mini';
+        // Build the prompt for Gemini
+        const prompt = `You are a helpful language tutor. 
 
-        // Build the system prompt
-        const systemPrompt = `You are a helpful language tutor. Your task is to:
-1. Fix and improve sentences in the specified language
-2. Provide clear explanations of the corrections
-3. Suggest alternative ways to express the same idea
-
-Always respond with valid JSON in the exact format specified.`;
-
-        // Build the user prompt
-        const userPrompt = `Fix the following sentence in ${language} with a ${tone} tone.
-
+Task 1: Correct the following sentence naturally in ${language} with a ${tone} tone.
 Sentence: "${sentence}"
 
-Required JSON response format:
+Task 2: Briefly explain the mistake in 1-3 sentences.
+
+Task 3: Provide exactly 2 alternative rewrites.
+
+Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 {
   "corrected": "the fixed sentence",
   "explanation": "explanation of changes made",
-  "alternatives": ["alternative 1", "alternative 2", "alternative 3"]
+  "alternatives": ["alternative 1", "alternative 2"]
 }`;
 
-        // Call OpenAI API
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Call Gemini API
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: model,
-                messages: [
-                    {
-                        role: 'system',
-                        content: systemPrompt
-                    },
-                    {
-                        role: 'user',
-                        content: userPrompt
-                    }
-                ],
-                temperature: 0.3,
-                response_format: {
-                    type: 'json_object'
-                }
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
             })
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error?.message || `OpenAI API error: ${response.status}`);
+            throw new Error(errorData.error?.message || `Gemini API error: ${response.status}`);
         }
 
         const data = await response.json();
 
         // Parse the AI response
-        const content = data.choices?.[0]?.message?.content;
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!content) {
             throw new Error('No response from AI');
@@ -120,23 +86,41 @@ Required JSON response format:
                 try {
                     parsed = JSON.parse(jsonMatch[0]);
                 } catch (innerError) {
-                    throw new Error('Failed to parse AI response as JSON');
+                    throw new Error('Invalid AI response');
                 }
             } else {
-                throw new Error('Failed to parse AI response as JSON');
+                throw new Error('Invalid AI response');
             }
         }
 
         // Validate required fields
         if (!parsed.corrected || !parsed.explanation || !Array.isArray(parsed.alternatives)) {
-            throw new Error('Invalid response format from AI');
+            throw new Error('Invalid AI response');
+        }
+
+        // Check if sentence appears to be in selected language
+        const sentenceLower = sentence.toLowerCase();
+        const isSpanish = /[áéíóúñ¿¡ü]/i.test(sentence) || 
+                         /\b(el|la|los|las|un|una|unos|unas|es|son|está|están)\b/i.test(sentence);
+        const isEnglish = /\b(the|is|are|was|were|a|an|this|that|these|those)\b/i.test(sentence);
+
+        const looksLikeCorrectLanguage = (language === 'Spanish' && isSpanish) || 
+                                         (language === 'English' && isEnglish) ||
+                                         (!isSpanish && !isEnglish); // Short or unclear sentences
+
+        if (!looksLikeCorrectLanguage && sentence.length > 10) {
+            return res.status(200).json({
+                corrected: "",
+                explanation: `Your sentence doesn't look like ${language}. Please try again.`,
+                alternatives: []
+            });
         }
 
         // Return the result
         return res.status(200).json({
             corrected: parsed.corrected,
             explanation: parsed.explanation,
-            alternatives: parsed.alternatives.slice(0, 5) // Limit to 5 alternatives
+            alternatives: parsed.alternatives.slice(0, 2) // Limit to 2 alternatives
         });
 
     } catch (error) {
