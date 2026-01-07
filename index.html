@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Sentence Fixer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Sentence Fixer</h1>
+            <p class="subtitle">Improve your sentences with AI</p>
+        </header>
+
+        <main>
+            <form id="sentence-form">
+                <div class="form-group">
+                    <label for="sentence">Your Sentence</label>
+                    <textarea id="sentence" placeholder="Enter your sentence here..." required></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="language">Language</label>
+                        <select id="language">
+                            <option value="English">English</option>
+                            <option value="Spanish">Spanish</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tone">Tone</label>
+                        <select id="tone">
+                            <option value="neutral">Neutral</option>
+                            <option value="formal">Formal</option>
+                            <option value="casual">Casual</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" id="improve-btn">Improve</button>
+            </form>
+
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Generating...</p>
+            </div>
+
+            <div id="error" class="error hidden"></div>
+
+            <div id="results" class="results hidden">
+                <div class="result-section">
+                    <h3>Corrected</h3>
+                    <div id="corrected" class="output-box"></div>
+                </div>
+
+                <div class="result-section">
+                    <h3>Explanation</h3>
+                    <div id="explanation" class="output-box"></div>
+                </div>
+
+                <div class="result-section">
+                    <h3>Alternatives</h3>
+                    <div id="alternatives" class="output-box"></div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by OpenAI API</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
