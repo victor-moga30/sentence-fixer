@@ -2,7 +2,8 @@
 
 Improve your sentences with AI-powered language correction.
 
-![AI Sentence Fixer Screenshot](screenshot.png)
+<img width="1257" height="1329" alt="image" src="https://github.com/user-attachments/assets/ab7f4f82-8643-4e5b-9fc1-ff4e7dccd36d" />
+
 
 ## Features
 
@@ -271,3 +272,54 @@ try {
 ## License
 
 MIT License - feel free to use this project for learning or as a starting point for your own projects.
+
+# AI Sentence Fixer
+
+A web application that improves sentences using Artificial Intelligence.
+Users can choose the language and tone to receive a corrected sentence, explanation, and alternative versions.
+
+🔗 Live demo: https://sentence-fixer.vercel.app
+
+---
+
+## 🚀 Features
+- Sentence correction using AI
+- Multiple languages and tones
+- Clean and simple user interface
+- Deployed online using Vercel
+
+---
+
+## 🧠 Tips & Tricks
+
+### 1. Always verify available AI models before implementation
+Initially, the application used an unsupported model, which caused API errors.
+I fixed this by querying the available models from the Gemini API and selecting a compatible one.
+
+### 2. Handle AI responses defensively
+AI responses are validated and parsed safely using `try-catch` to avoid crashes caused by malformed output.
+
+### 3. Force strict output format in prompts
+The AI is instructed to return **raw JSON only**, which significantly improves backend reliability.
+
+### 4. Expect and manage API rate limits
+Free-tier APIs have strict limits, so the application handles quota errors gracefully.
+
+### 5. Use environment variables for security
+The API key is stored securely using environment variables and is never committed to GitHub.
+
+### 6. Deploy early and test in production
+Some issues appeared only after deployment, so continuous deployment helped identify and fix them quickly.
+
+### 7. Keep the UI simple
+A minimal UI reduced complexity and helped focus on core functionality.
+
+---
+
+## 🛠️ Technologies Used
+- HTML, CSS, JavaScript
+- Vercel (Hosting)
+- Groq API
+- Serverless Functions
+
+
