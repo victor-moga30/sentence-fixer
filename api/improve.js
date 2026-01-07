@@ -31,8 +31,15 @@ async function handler(req, res) {
             });
         }
 
-        // Build the prompt for Gemini
+        // Build the prompt for Gemini - STRONGLY force raw JSON with NO markdown
         const prompt = `You are a helpful language tutor. 
+
+CRITICAL INSTRUCTIONS - READ CAREFULLY:
+- OUTPUT ONLY RAW JSON - NO MARKDOWN, NO BACKTICKS, NO EXPLANATIONS
+- Return the JSON object directly without any formatting
+- Do NOT wrap the JSON in triple backticks (\`\`\`json or any other format)
+- Do NOT add any text before or after the JSON
+- The response must be valid JSON that can be parsed directly
 
 Task 1: Correct the following sentence naturally in ${language} with a ${tone} tone.
 Sentence: "${sentence}"
@@ -41,7 +48,7 @@ Task 2: Briefly explain the mistake in 1-3 sentences.
 
 Task 3: Provide exactly 2 alternative rewrites.
 
-Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
+Respond ONLY with valid JSON in this exact format:
 {
   "corrected": "the fixed sentence",
   "explanation": "explanation of changes made",
@@ -75,17 +82,40 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
             throw new Error('No response from AI');
         }
 
+        // Strip markdown formatting (triple backticks with "json" language identifier)
+        let cleanedContent = content.trim();
+        
+        // Remove leading triple backticks with optional "json" language identifier
+        if (cleanedContent.startsWith('```json')) {
+            cleanedContent = cleanedContent.slice(7);
+        } else if (cleanedContent.startsWith('```')) {
+            cleanedContent = cleanedContent.slice(3);
+        }
+        
+        // Remove trailing triple backticks
+        if (cleanedContent.endsWith('```')) {
+            cleanedContent = cleanedContent.slice(0, -3);
+        }
+        
+        // Trim again after removing backticks
+        cleanedContent = cleanedContent.trim();
+
         // Parse JSON safely
         let parsed;
         try {
-            parsed = JSON.parse(content);
+            parsed = JSON.parse(cleanedContent);
         } catch (parseError) {
-            throw new Error('Invalid AI response');
+            console.error('Failed to parse AI response:', cleanedContent);
+            return res.status(500).json({
+                error: "Invalid AI response"
+            });
         }
 
         // Validate required fields
         if (!parsed.corrected || !parsed.explanation || !Array.isArray(parsed.alternatives)) {
-            throw new Error('Invalid AI response');
+            return res.status(500).json({
+                error: "Invalid AI response"
+            });
         }
 
         // Check if sentence appears to be in selected language
