@@ -1,5 +1,5 @@
 // Vercel Serverless Function for AI Sentence Fixer
-// This file handles API requests and communicates with Google Gemini
+// This file handles API requests and communicates with Groq API (Llama)
 
 async function handler(req, res) {
     // Only allow POST requests
@@ -23,15 +23,15 @@ async function handler(req, res) {
         const { sentence, language, tone } = body;
 
         // Get API key from environment variables
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = process.env.GROQ_API_KEY;
 
         if (!apiKey) {
             return res.status(500).json({
-                error: 'API key not configured. Please set GEMINI_API_KEY environment variable.'
+                error: 'API key not configured. Please set GROQ_API_KEY environment variable.'
             });
         }
 
-        // Build the prompt for Gemini - STRONGLY force raw JSON with NO markdown
+        // Build the prompt for Groq - STRONGLY force raw JSON with NO markdown
         const prompt = `You are a helpful language tutor.
 
 Task: Correct the following sentence naturally in ${language} with a ${tone} tone.
@@ -58,37 +58,38 @@ OUTPUT REQUIREMENTS:
 - Return the JSON object directly without any formatting
 - Do NOT wrap the JSON in triple backticks (\`\`\`json or any other format)
 - Do NOT add any text before or after the JSON
-- The response must be valid JSON that can be parsed directly`;
+- The response must be valid JSON that can be parsed directly
+- You must provide exactly 2 alternatives when the sentence is valid`;
 
-        // Call Gemini API
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        // Call Groq API
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                contents: [{
-                    parts: [{ text: prompt }]
+                model: 'llama-3.1-8b-instant',
+                messages: [{
+                    role: 'user',
+                    content: prompt
                 }],
-                generationConfig: {
-                    response_mime_type: "application/json",
-                    temperature: 0.3,
-                    maxOutputTokens: 512
-                }
+                temperature: 0.3,
+                max_tokens: 512
             })
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            const geminiErrorMessage = errorData.error?.message || `Gemini API error: ${response.status}`;
-            console.error('Gemini API error:', geminiErrorMessage);
-            return res.status(500).json({ error: geminiErrorMessage });
+            const groqErrorMessage = errorData.error?.message || `Groq API error: ${response.status}`;
+            console.error('Groq API error:', groqErrorMessage);
+            return res.status(500).json({ error: groqErrorMessage });
         }
 
         const data = await response.json();
 
         // Parse the AI response
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const content = data.choices?.[0]?.message?.content;
 
         if (!content) {
             console.error('Empty AI response:', data);
@@ -111,12 +112,27 @@ OUTPUT REQUIREMENTS:
                 try {
                     parsed = JSON.parse(jsonStr);
                 } catch (e2) {
-                    console.error('Raw Gemini response:', trimmedText);
+                    console.error('Raw Groq response:', trimmedText);
                     return res.status(500).json({ error: "Invalid AI response" });
                 }
             } else {
-                console.error('Raw Gemini response:', trimmedText);
+                console.error('Raw Groq response:', trimmedText);
                 return res.status(500).json({ error: "Invalid AI response" });
+            }
+        }
+
+        // Validate the response has the expected structure
+        if (parsed && typeof parsed === 'object') {
+            // Ensure alternatives is an array
+            if (!Array.isArray(parsed.alternatives)) {
+                parsed.alternatives = [];
+            }
+            // Ensure corrected and explanation are strings
+            if (typeof parsed.corrected !== 'string') {
+                parsed.corrected = '';
+            }
+            if (typeof parsed.explanation !== 'string') {
+                parsed.explanation = '';
             }
         }
 
