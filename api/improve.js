@@ -5,7 +5,7 @@ async function handler(req, res) {
     // Only allow POST requests
     if (req.method !== 'POST') {
         return res.status(405).json({
-            error: 'Method not allowed. Use POST.'
+            error: "Method not allowed"
         });
     }
 
@@ -16,7 +16,7 @@ async function handler(req, res) {
         // Validate sentence exists and is not empty
         if (!body.sentence || typeof body.sentence !== 'string' || body.sentence.trim() === '') {
             return res.status(400).json({
-                error: 'Sentence is required'
+                error: "Sentence is required"
             });
         }
 
@@ -49,7 +49,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 }`;
 
         // Call Gemini API
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -80,17 +80,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
         try {
             parsed = JSON.parse(content);
         } catch (parseError) {
-            // Try to extract JSON from response if it contains extra text
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                try {
-                    parsed = JSON.parse(jsonMatch[0]);
-                } catch (innerError) {
-                    throw new Error('Invalid AI response');
-                }
-            } else {
-                throw new Error('Invalid AI response');
-            }
+            throw new Error('Invalid AI response');
         }
 
         // Validate required fields
@@ -111,7 +101,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
         if (!looksLikeCorrectLanguage && sentence.length > 10) {
             return res.status(200).json({
                 corrected: "",
-                explanation: `Your sentence doesn't look like ${language}. Please try again.`,
+                explanation: "Your sentence doesn't look like <language>. Please try again.",
                 alternatives: []
             });
         }
@@ -120,13 +110,13 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
         return res.status(200).json({
             corrected: parsed.corrected,
             explanation: parsed.explanation,
-            alternatives: parsed.alternatives.slice(0, 2) // Limit to 2 alternatives
+            alternatives: parsed.alternatives
         });
 
     } catch (error) {
         console.error('Error in improve API:', error);
         return res.status(500).json({
-            error: error.message || 'An internal error occurred'
+            error: "Invalid AI response"
         });
     }
 }
