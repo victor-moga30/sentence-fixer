@@ -69,13 +69,20 @@ OUTPUT REQUIREMENTS:
             body: JSON.stringify({
                 contents: [{
                     parts: [{ text: prompt }]
-                }]
+                }],
+                generationConfig: {
+                    response_mime_type: "application/json",
+                    temperature: 0.3,
+                    maxOutputTokens: 512
+                }
             })
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error?.message || `Gemini API error: ${response.status}`);
+            const geminiErrorMessage = errorData.error?.message || `Gemini API error: ${response.status}`;
+            console.error('Gemini API error:', geminiErrorMessage);
+            return res.status(500).json({ error: geminiErrorMessage });
         }
 
         const data = await response.json();
@@ -84,21 +91,33 @@ OUTPUT REQUIREMENTS:
         const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!content) {
-            throw new Error('No response from AI');
+            console.error('Empty AI response:', data);
+            return res.status(500).json({ error: "No response from AI" });
         }
 
         // Trim the text
-        const trimmedContent = content.trim();
+        const trimmedText = content.trim();
 
-        // Parse JSON safely
+        // Try JSON.parse on the returned text
         let parsed;
         try {
-            parsed = JSON.parse(trimmedContent);
-        } catch (parseError) {
-            console.error('Failed to parse AI response:', trimmedContent);
-            return res.status(500).json({
-                error: "Invalid AI response"
-            });
+            parsed = JSON.parse(trimmedText);
+        } catch (e) {
+            // Attempt to extract the first JSON object between first '{' and last '}'
+            const firstBrace = trimmedText.indexOf('{');
+            const lastBrace = trimmedText.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                const jsonStr = trimmedText.substring(firstBrace, lastBrace + 1);
+                try {
+                    parsed = JSON.parse(jsonStr);
+                } catch (e2) {
+                    console.error('Raw Gemini response:', trimmedText);
+                    return res.status(500).json({ error: "Invalid AI response" });
+                }
+            } else {
+                console.error('Raw Gemini response:', trimmedText);
+                return res.status(500).json({ error: "Invalid AI response" });
+            }
         }
 
         // Return parsed JSON directly to frontend
