@@ -170,34 +170,7 @@ The frontend makes a request to `/api/improve`, which:
 2. Calls OpenAI API on your server
 3. Returns the result to the frontend
 
-### 2. Calling OpenAI API
-
-Use the Chat Completions API for best results:
-
-```javascript
-const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-            { role: 'system', content: 'You are a helpful assistant.' },
-            { role: 'user', content: userInput }
-        ],
-        temperature: 0.3
-    })
-});
-```
-
-**Key parameters:**
-- `model`: Use "gpt-4o-mini" for best quality/cost ratio
-- `temperature`: Lower (0.1-0.3) for more consistent outputs
-- `messages`: Array of conversation messages
-
-### 3. Prompt Formatting to Force JSON
+### 2. Prompt Formatting to Force JSON
 
 Get structured JSON responses from GPT models:
 
